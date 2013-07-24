@@ -1,0 +1,584 @@
+-- MySQL dump 10.13  Distrib 5.1.67, for debian-linux-gnu (x86_64)
+--
+-- Host: localhost    Database:OHIDS
+-- ------------------------------------------------------
+-- Server version       5.1.67-0ubuntu0.10.04.1
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `Error_Log`
+--
+
+DROP TABLE IF EXISTS `Error_Log`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Error_Log` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) NOT NULL,
+  `Error` longtext NOT NULL,
+  PRIMARY KEY (`UID`)
+) ENGINE=MyISAM AUTO_INCREMENT=316 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Find_SSN`
+--
+
+DROP TABLE IF EXISTS `Find_SSN`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Find_SSN` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Count` int(11) NOT NULL,
+  `File` text NOT NULL,
+  PRIMARY KEY (`UID`)
+) ENGINE=InnoDB AUTO_INCREMENT=112 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Find_SSN_Temp`
+--
+
+DROP TABLE IF EXISTS `Find_SSN_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Find_SSN_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Count` int(11) NOT NULL,
+  `File` text NOT NULL,
+  PRIMARY KEY (`UID`)
+) ENGINE=InnoDB AUTO_INCREMENT=5948 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Firewall`
+--
+
+DROP TABLE IF EXISTS `Firewall`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Firewall` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) NOT NULL,
+  `Policy` tinytext,
+  `Mode` tinytext NOT NULL,
+  `Prog_Name` tinytext NOT NULL,
+  `Prog_Path` text NOT NULL,
+  `Traffic_Dir` tinytext NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_firewall` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=39 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Firewall_Temp`
+--
+
+DROP TABLE IF EXISTS `Firewall_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Firewall_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) NOT NULL,
+  `Policy` tinytext,
+  `Mode` tinytext NOT NULL,
+  `Prog_Name` tinytext NOT NULL,
+  `Prog_Path` text NOT NULL,
+  `Traffic_Dir` tinytext NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_firewall` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=175 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Good_File`
+--
+
+DROP TABLE IF EXISTS `Good_File`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Good_File` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Name` tinytext NOT NULL,
+  PRIMARY KEY (`UID`)
+) ENGINE=MyISAM AUTO_INCREMENT=13 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Good_Hash`
+--
+
+DROP TABLE IF EXISTS `Good_Hash`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Good_Hash` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `File_Name` text NOT NULL,
+  `MD5` varchar(32) NOT NULL,
+  `OS_Version` tinytext NOT NULL,
+  PRIMARY KEY (`UID`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Good_Serv`
+--
+
+DROP TABLE IF EXISTS `Good_Serv`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Good_Serv` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Name` tinytext NOT NULL,
+  PRIMARY KEY (`UID`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Netstat`
+--
+
+DROP TABLE IF EXISTS `Netstat`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Netstat` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Protocol` tinytext NOT NULL,
+  `LocalIP` varchar(25) DEFAULT NULL,
+  `DstIP` varchar(25) DEFAULT NULL,
+  `Status` tinytext NOT NULL,
+  `PID` int(11) NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_netstat` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=745 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Netstat_Temp`
+--
+
+DROP TABLE IF EXISTS `Netstat_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Netstat_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Protocol` tinytext NOT NULL,
+  `LocalIP` varchar(25) DEFAULT NULL,
+  `DstIP` varchar(25) DEFAULT NULL,
+  `Status` tinytext NOT NULL,
+  `PID` int(11) NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_netstat` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=3228 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `PC_Hash`
+--
+
+DROP TABLE IF EXISTS `PC_Hash`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `PC_Hash` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `File_Name` text,
+  `MD5` varchar(32) NOT NULL,
+  `Mdate` datetime NOT NULL,
+  `Adate` datetime NOT NULL,
+  `Cdate` datetime NOT NULL,
+  `Company_Name` tinytext NOT NULL,
+  `Version` text,
+  PRIMARY KEY (`UID`),
+  KEY `idx_pc_hash` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=7376 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `PC_Hash_Temp`
+--
+
+DROP TABLE IF EXISTS `PC_Hash_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `PC_Hash_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `File_Name` text,
+  `MD5` varchar(32) NOT NULL,
+  `Mdate` datetime NOT NULL,
+  `Adate` datetime NOT NULL,
+  `Cdate` datetime NOT NULL,
+  `Company_Name` tinytext NOT NULL,
+  `Version` text,
+  PRIMARY KEY (`UID`),
+  KEY `idx_pc_hash` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=32456 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `PC_Info`
+--
+
+DROP TABLE IF EXISTS `PC_Info`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `PC_Info` (
+  `PC_Id` int(11) NOT NULL AUTO_INCREMENT,
+  `Last_Seen` datetime NOT NULL,
+  `Cname` tinytext NOT NULL,
+  `IP` varchar(15) NOT NULL,
+  `MAC` varchar(17) NOT NULL,
+  `OS_Name` tinytext NOT NULL,
+  `OS_Ver` tinytext NOT NULL,
+  `Arch` tinytext NOT NULL,
+  `User` text NOT NULL,
+  `Admin` varchar(1) NOT NULL,
+  `First_Seen` datetime NOT NULL,
+  `Enabled_Users` text NOT NULL,
+  PRIMARY KEY (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Process`
+--
+
+DROP TABLE IF EXISTS `Process`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Process` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Proc_Name` tinytext,
+  `Handelcount` int(11) NOT NULL,
+  `Proc_File` text NOT NULL,
+  `PID` int(11) NOT NULL,
+  `Threadcount` int(11) NOT NULL,
+  `Commandline` tinytext COMMENT 'Parameters passed to process',
+  `PPID` int(11) DEFAULT NULL COMMENT 'Parent Process ID',
+  `Proc_Mod` tinytext,
+  `Owner` tinytext,
+  PRIMARY KEY (`UID`),
+  KEY `idx_process` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=29080 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Process_Temp`
+--
+
+DROP TABLE IF EXISTS `Process_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Process_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Proc_Name` tinytext,
+  `Handelcount` int(11) NOT NULL,
+  `Proc_File` text NOT NULL,
+  `PID` int(11) NOT NULL,
+  `Threadcount` int(11) NOT NULL,
+  `Commandline` tinytext COMMENT 'Parameters passed to process',
+  `PPID` int(11) DEFAULT NULL COMMENT 'Parent Process ID',
+  `Proc_Mod` tinytext,
+  `Owner` tinytext,
+  PRIMARY KEY (`UID`),
+  KEY `idx_process` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=129712 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Sch_Tasks`
+--
+
+DROP TABLE IF EXISTS `Sch_Tasks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Sch_Tasks` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) NOT NULL,
+  `Task_Name` text NOT NULL,
+  `Task_Run` text NOT NULL,
+  `Next_Run_Time` text,
+  `Last_Run_Time` text,
+  `Author` tinytext NOT NULL,
+  `State` tinytext NOT NULL,
+  `Type` tinytext NOT NULL,
+  `Run_As` tinytext NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_sch_task` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=1048 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Sch_Tasks_Temp`
+--
+
+DROP TABLE IF EXISTS `Sch_Tasks_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Sch_Tasks_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) NOT NULL,
+  `Task_Name` text NOT NULL,
+  `Task_Run` text NOT NULL,
+  `Next_Run_Time` text,
+  `Last_Run_Time` text,
+  `Author` tinytext NOT NULL,
+  `State` tinytext NOT NULL,
+  `Type` tinytext NOT NULL,
+  `Run_As` tinytext NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_sch_task` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=5084 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Service_List`
+--
+
+DROP TABLE IF EXISTS `Service_List`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Service_List` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Unique ID for table',
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Name` tinytext NOT NULL,
+  `PID` smallint(6) NOT NULL,
+  `PathName` text,
+  `StartMode` tinytext NOT NULL,
+  `State` tinytext COMMENT 'Current State of Service. Typical Running or Stopped',
+  `Status` tinytext COMMENT 'Normally OK',
+  `ServiceType` varchar(20) DEFAULT NULL,
+  `StartName` varchar(25) DEFAULT NULL,
+  `Exitcode` smallint(6) DEFAULT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_service_list` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=2200 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Service_List_Temp`
+--
+
+DROP TABLE IF EXISTS `Service_List_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Service_List_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Unique ID for table',
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Name` tinytext NOT NULL,
+  `PID` smallint(6) NOT NULL,
+  `PathName` text,
+  `StartMode` tinytext NOT NULL,
+  `State` tinytext COMMENT 'Current State of Service. Typical Running or Stopped',
+  `Status` tinytext COMMENT 'Normally OK',
+  `ServiceType` varchar(20) DEFAULT NULL,
+  `StartName` varchar(25) DEFAULT NULL,
+  `Exitcode` smallint(6) DEFAULT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_service_list` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=9921 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Start_List`
+--
+
+DROP TABLE IF EXISTS `Start_List`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Start_List` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Caption` text NOT NULL,
+  `Command` text NOT NULL,
+  `Description` tinytext NOT NULL,
+  `Location` text NOT NULL,
+  `SettingID` tinyint(4) NOT NULL,
+  `User` tinytext NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_start_list` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=70 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `Start_List_Temp`
+--
+
+DROP TABLE IF EXISTS `Start_List_Temp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `Start_List_Temp` (
+  `UID` int(11) NOT NULL AUTO_INCREMENT,
+  `Date` datetime NOT NULL,
+  `PC_Id` int(11) DEFAULT NULL,
+  `Caption` text NOT NULL,
+  `Command` text NOT NULL,
+  `Description` tinytext NOT NULL,
+  `Location` text NOT NULL,
+  `SettingID` tinyint(4) NOT NULL,
+  `User` tinytext NOT NULL,
+  PRIMARY KEY (`UID`),
+  KEY `idx_start_list` (`PC_Id`)
+) ENGINE=MyISAM AUTO_INCREMENT=377 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping routines for database 'OHIDS'
+--
+/*!50003 DROP PROCEDURE IF EXISTS `get_com_id` */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = latin1 */ ;
+/*!50003 SET character_set_results = latin1 */ ;
+/*!50003 SET collation_connection  = latin1_swedish_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `get_com_id`(IN input VARCHAR(30), OUT compidnum INT)
+    READS SQL DATA
+BEGIN
+DECLARE curdate_val DATETIME;
+DECLARE compidnum int;
+SET @input=input;
+SET @compidnum= NULL;
+
+prepare compid from
+   'select PC_Id INTO @compidnum from PC_Info where Cname= ? limit 1' ;
+
+execute compid USING @input;
+
+
+IF @compidnum IS NULL THEN
+SELECT NOW() INTO curdate_val;
+INSERT INTO OHIDS.PC_Info
+(PC_Id,Last_Seen,Cname,IP,MAC,OS_Name,OS_Ver,Arch,User,Admin,First_Seen,Enabled_Users) VALUES
+('0',curdate_val,INPUT,'0.0.0.0','::','Windows','unknown','unknown','unknown','unknown',curdate_val,'me');
+END IF;
+
+
+execute compid USING @input;
+
+select @compidnum;
+
+
+DEALLOCATE PREPARE compid;
+
+
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 DROP PROCEDURE IF EXISTS `update_comp_info` */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = latin1 */ ;
+/*!50003 SET character_set_results = latin1 */ ;
+/*!50003 SET collation_connection  = latin1_swedish_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50020 DEFINER=`root`@`localhost`*/ /*!50003 PROCEDURE `update_comp_info`(IN authcode CHAR(32), IN PCid text,  IN PCdate
+datetime, IN IP varchar(15), IN MAC varchar(17),
+IN OS_NAME tinytext, IN OS_VER tinytext, IN Arch tinytext, IN PCUser text, IN Admin varchar(1), IN Enabled_Users
+text )
+    READS SQL DATA
+BEGIN
+
+
+prepare getcompname from
+'select Cname INTO @mysqlcompname from PC_Info where PC_Id= ? limit 1' ;
+
+SET @PCid=PCid;
+execute getcompname USING @PCid;
+
+
+select md5(CONCAT (@mysqlcompname , @PCid)) into @sql_auth_code;
+
+
+
+SET @PCdate=PCdate;
+SET @IP=IP;
+SET @MAC=MAC;
+SET @OS_Name=OS_Name;
+SET @OS_VER=OS_VER;
+SET @Arch=Arch;
+SET @PCUser=PCUser;
+SET @Admin=Admin;
+SET @Enabled_Users=Enabled_Users;
+SET @PCid=PCid;
+
+
+
+
+
+IF authcode LIKE @sql_auth_code THEN
+        prepare compupdate from
+'UPDATE PC_Info SET Last_Seen= ?, IP= ?,  MAC=?, OS_Name= ?,  OS_Ver= ?, Arch= ?, User= ?, Admin= ?, Enabled_Users=
+? WHERE PC_ID= ?';
+execute compupdate USING @PCdate, @IP, @MAC, @OS_Name, @OS_VER, @Arch, @PCUser, @Admin, @Enabled_Users, @PCid ;
+
+DEALLOCATE PREPARE compupdate;
+
+else
+select "No Match";
+
+END IF;
+
+DEALLOCATE PREPARE getcompname;
+
+
+
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2013-03-21 21:28:09

@@ -1,0 +1,1085 @@
+'***********************************************************************
+'OHIDS 1,0
+'Authors -  Tom Webb (tcw3bb@gmail.com)
+'Previous Contributer Vipul Gupta (vipulgupta0@gmail.com)
+'This script collects system specific data for forensic analysis
+'This script will work on vb.net 4.0.
+
+'***********************************************************************
+'*********************************************************************
+'Importing required modules
+'*********************************************************************
+Imports System.Net.NetworkInformation
+Imports System.Management
+Imports System.Security.Principal
+Imports System.Text.RegularExpressions
+Imports System.Threading
+Imports System.IO
+Imports System.ServiceProcess
+Imports Microsoft.Win32
+Imports MySql.Data.MySqlClient
+Imports System.Diagnostics
+
+Module Module1
+    '*********************************************************************
+    'Declare constants
+    '*********************************************************************
+    Dim Machine As String = System.Environment.MachineName
+    'Dim mydate = DateTime.Now.ToString("yyyy-MM-dd") 'new
+    Dim mydate = Format(System.DateTime.Now, "yyyy-MM-dd HH:mm:ss")
+    Const ForReading = 1
+    Const ForAppending = 8
+    Const ForOverWriting = 2
+    Const OpenAsASCII = 0
+    Const OpenAsUnicode = -1
+    Const OpenUsingDefault = -2
+    Const OverWriteExisting = True
+    Const HKLM = &H80000002 'HKEY_LOCAL_MACHINE
+
+    Dim nowdate As Date = System.DateTime.Now.Date
+    Dim RunCmds As Boolean
+    Dim wshNetwork As Object = CreateObject("WScript.Network")
+    Dim strComputerName As String = Machine
+    Dim oShell As Object = CreateObject("WScript.Shell")
+
+    Dim dir = AppDomain.CurrentDomain.BaseDirectory
+   
+
+    Dim strOutPutStream
+    Dim strDate As Date
+    Dim LocalUserName As String
+    Dim osArch As String = ""
+    Dim PC_ID As Int32
+    Dim Registery_Path As String = System.Configuration.ConfigurationManager.AppSettings("Registery_Path")
+    Dim Temp_Path As String = System.Configuration.ConfigurationManager.AppSettings("Temp_Path")
+    '****************************************************************
+    'MYSQL Variables
+    '****************************************************************
+    Dim server As String = System.Configuration.ConfigurationManager.AppSettings("DB_SERVER")
+    Dim database As String = System.Configuration.ConfigurationManager.AppSettings("DB_Database_Name")
+    Dim userid As String = System.Configuration.ConfigurationManager.AppSettings("DB_UserId")
+    Dim password As String = System.Configuration.ConfigurationManager.AppSettings("DB_PASSWD")
+    Dim ConnectionString = "server=" & server & ";" & "user id=" & userid & ";" & "password=" & password & ";" & "database=" & database & ";" & "SSL Mode=Required" & ";" & "check parameters=false"
+
+    Dim MysqlConn As MySqlConnection
+
+
+    '*********************************************************************
+    'Main Module, entry to the program 
+    '*********************************************************************
+    Sub Main()
+
+        If (Not System.IO.Directory.Exists(Temp_Path)) Then
+            System.IO.Directory.CreateDirectory(Temp_Path)
+        End If
+
+        If QueryPort() = True Then
+            Analyze()
+            'After data collection, if no errors are encountered (the flag
+            'is True), then write to registry
+            Cleanup()               'Cleanup, Rename Files and Copy to destination
+            MySQLCloseConnection() ' last thing to run
+        Else
+            'Bow out because server is not open."
+        End If
+
+    End Sub
+
+    '*********************************************************************
+    'The main data collection and analysis module, makes necessary 
+    'function calls and starts data collection tools
+    '*********************************************************************
+    Function Analyze()
+        MySQLOpenConnection(ConnectionString) 'open sql connection
+        comid_sql(Machine) ' Get PC_ID from the data to use in output
+
+        'Starting netstat, netsh, and schtasks
+        Process.Start("cmd", "/c netstat -nao >" & Temp_Path & "\netstat.txt")
+        Process.Start("cmd", "/c netsh firewall show allowedprogram >" & Temp_Path & "\firewall.txt")
+        Process.Start("cmd", "/c schtasks /query /v /fo csv > " & Temp_Path & "\s.csv")
+
+        ProcInform()            'Get the Running Processes Related Information
+        NetstatInform()         'Get the Netstat Information
+        ServListInform()        'Get the Service List Information
+        StartListInform()       'Get the Startup List Information
+        FirewallConfigInform()  'Get the Windows Firewall Configuration Information
+        PCInform()              'Get the PC Information
+        SchTasksInform()        'Get the Schedule Tasks Information
+
+
+        Dim oReg As Object = GetObject("winmgmts://" & strComputerName & "/root/default:StdRegProv")
+        Dim strError = oReg.CreateKey(HKLM, Registery_Path) 'Create Key
+
+        If ReadRegistry(HKLM, Registery_Path, "LastFindSSN", strDate) IsNot "False" Then
+            If DateDiff("d", ReadRegistry(HKLM, Registery_Path, "LastFindSSN", strDate), nowdate) >= 7 Then
+                New_FindSSNs()
+                find_ssn_prep()         'Prep Files for upload
+                WriteRegistry("HKLM\" & Registery_Path & "LastFindSSN", nowdate, "REG_SZ")
+
+            Else
+                'Bow out.           
+            End If
+        End If
+
+        Return Err()
+    End Function
+
+    Function New_FindSSNs()
+      
+
+        If (My.Computer.Info.OSFullName.Contains("Windows XP")) Then
+            Dim WinXPFindSSN As New System.Diagnostics.Process
+            Dim ssnargs As String = " -p " & """c:\Documents and Settings\" & LocalUserName & "\My Documents""" & " -o " & Temp_Path & " -t csv -a"
+            Try
+
+                Dim SI As New ProcessStartInfo(dir & "Find_SSNs.exe", ssnargs)
+
+                WinXPFindSSN.StartInfo = SI
+                WinXPFindSSN.Start()
+                WinXPFindSSN.WaitForExit()
+
+                'Rename the file before its over written for the second scan of desktop
+
+                Dim OldName, NewName As String
+                OldName = Temp_Path & "\Find_SSNs.csv"
+                NewName = Temp_Path & "Find_SSNs1.csv" ' Define file names.
+                Rename(OldName, NewName)   ' Rename file.
+
+            Catch ex As Exception
+                error_sql("Error in findssn function file rename to Find_SSN1.csv:" & ex.Message)
+            End Try
+
+            Dim WinXPFindSSNDekstop As New System.Diagnostics.Process
+            Dim ssnargsdesk As String = " -p " & """c:\Documents and Settings\" & LocalUserName & "\Desktop""" & " -o " & Temp_Path & " -t csv -a"
+            Dim SI2 As New ProcessStartInfo(dir & "Find_SSNs.exe", ssnargsdesk)
+
+            WinXPFindSSNDekstop.StartInfo = SI2
+            WinXPFindSSNDekstop.Start()
+            WinXPFindSSNDekstop.WaitForExit()
+
+        Else ' Windows Vista or greater
+         
+            Dim Win7FindSSN32 As New System.Diagnostics.Process
+            Dim ssnargs32 As String = " -p " & """c:\Users\" & LocalUserName & "\Local Documents""" & " -o " & Temp_Path & " -t csv -a"
+            Try
+                Dim SI As New ProcessStartInfo(dir & "Find_SSNs.exe", ssnargs32)
+
+                ' Console.WriteLine(dir & "Find_SSNs.exe" & ssnargs32)
+                ' Console.ReadLine()
+
+                Win7FindSSN32.StartInfo = SI
+                Win7FindSSN32.Start()
+                Win7FindSSN32.WaitForExit()
+
+                'Rename the file before its over written
+
+                Dim OldName, NewName As String
+                OldName = Temp_Path & "\Find_SSNs.csv"
+                NewName = Temp_Path & "\Find_SSNs1.csv" ' Define file names.
+                Rename(OldName, NewName)   ' Rename file.
+
+            Catch ex As Exception
+                error_sql("Error in findssn function file rename to Find_SSN1.csv:" & ex.Message)
+            End Try
+
+            Dim Win7FindSSN32desk As New System.Diagnostics.Process
+            Dim ssnargs32desk As String = " -p " & """c:\Users\" & LocalUserName & "\Desktop""" & " -o " & Temp_Path & " -t csv -a"
+            Try
+                Dim SI2 As New ProcessStartInfo(dir & "Find_SSNs.exe", ssnargs32desk)
+
+
+                Win7FindSSN32.StartInfo = SI2
+                Win7FindSSN32.Start()
+                Win7FindSSN32.WaitForExit()
+            Catch ex As Exception
+                error_sql("Error in findssn function file rename to Find_SSN1.csv:" & ex.Message)
+            End Try
+
+        End If
+
+        Return Err()
+
+    End Function
+    '*********************************************************************
+    'FIND_SSN_PREP
+    'Gets the results from ssn find ready for SQL insertion
+    '*********************************************************************
+    Function find_ssn_prep()
+        Try
+            If File.Exists(Temp_Path & "\Find_SSNs1.csv") Then
+                text_combine(Temp_Path & "\Find_SSNs.csv", Temp_Path & "\Find_SSNs1.csv") 'Combine the two results file into one find_ssn1.csv
+            Else
+                Dim oldname = Temp_Path & "\Find_SSNs.csv"
+                Dim newname = Temp_Path & "\Find_SSNs1.csv"
+                Rename(oldname, newname) ' Always have a file named Find_SSNs1.csv it results from the other scan
+            End If
+
+            Dim ssnline As StreamReader
+            Dim myline As String
+
+            ssnline = New StreamReader(Temp_Path & "\Find_SSNs1.csv", FileMode.Open)
+
+            Do While ssnline.Peek >= 0
+                myline = ssnline.ReadLine() ' set myline as varible for each line read
+                ' Console.WriteLine(myline)
+                '  Console.Read()
+                If Not myline.Contains("#") Then ' remove file header of #
+                    If Not myline.Contains("NO") Then ' Removes lines where no data found
+                        Dim Values() As String = Split(myline, ",")
+                        '  Console.WriteLine(Values(0) + Values(2)) ' we only need the 1st and 3rd values
+                        findssn_sql(mydate, Values(0), Values(2))
+                    End If
+                End If
+            Loop
+            ssnline.Close()
+            ssnline.Dispose()
+        Catch ex As Exception
+            error_sql("Error in findssn_prep function:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+    '*********************************************************************
+    'Cleanup, Rename Files and Copy to destination
+    '*********************************************************************
+    Function Cleanup()
+
+        Try
+            System.IO.File.Delete(Temp_Path & "\s.csv")
+            System.IO.File.Delete(Temp_Path & "\s_distinct.csv")
+            System.IO.File.Delete(Temp_Path & "\firewall.txt")
+            System.IO.File.Delete(Temp_Path & "\ua.csv")
+            System.IO.File.Delete(Temp_Path & "\schTaskFinal.csv")
+            System.IO.File.Delete(Temp_Path & "\Find_SSNs")
+            System.IO.File.Delete(Temp_Path & "md5sum.csv")
+            System.IO.File.Delete(Temp_Path & "\process.csv")
+            System.IO.File.Delete(Temp_Path & "\Find_SSNs.csv")
+            System.IO.File.Delete(Temp_Path & "\Find_SSNs1.csv")
+        Catch ex As Exception
+
+        End Try
+
+        Dim sdatafile2 As String
+        sdatafile2 = Temp_Path + Machine + ".File_Content.csv"
+        'Delete any older file with the same name
+        If System.IO.File.Exists(sdatafile2) Then
+            System.IO.File.Delete(sdatafile2)
+        End If
+
+        'If errors are encountered during data collection, set flag to False so that registry
+        'is not written, else set it to True
+        If Err.Number <> 0 Then
+            RunCmds = False
+        Else
+            RunCmds = True
+        End If
+        Return RunCmds
+    End Function
+
+    '*********************************************************************
+    'Get the Schedule Tasks Information
+    '*********************************************************************
+    Function SchTasksInform()
+        Thread.Sleep(8000)
+        Dim slines As String() = IO.File.ReadAllLines(Temp_Path & "\s.csv")
+        Dim dlines As String() = slines.Distinct.ToArray()
+        'Get unique Scheduled tasks and write to a temp file
+        IO.File.WriteAllLines(Temp_Path & "\s_distinct.csv", dlines)
+        Dim schTaskFinal As String = Temp_Path & "\schTaskFinal.csv"
+        Dim schTaskFinalWriter As New System.IO.StreamWriter(schTaskFinal)
+        Dim tasklines As String() = IO.File.ReadAllLines(Temp_Path & "\s_distinct.csv")
+        Dim schcount As Integer = 0
+        Dim schline As String()
+
+        'Scheduled Tasks are differently arranged in Windows 7 and Windows XP
+        'Following code does the formatting based on the OS
+
+        'For Windows 7
+        If (My.Computer.Info.OSFullName.Contains("Windows 7")) Then
+            For schcount = 1 To tasklines.Count - 1
+                'The scheduled task fields are surrounded by double quotes, split them
+                'based on the double quotes
+                schline = Regex.Split(tasklines(schcount), """")
+                If schline(19).StartsWith(" ") Then
+                    schtask_sql(mydate, PC_ID, schline(3), schline(17), schline(5), schline(11), schline(15), schline(25), schline(39), schline(31))
+                Else
+                    schtask_sql(mydate, PC_ID, schline(3), schline(17), schline(5), schline(11), schline(15), schline(23), schline(37), schline(29))
+                End If
+            Next
+            'For Windows XP
+        ElseIf My.Computer.Info.OSFullName.Contains("Windows XP") Then
+            For schcount = 2 To tasklines.Count - 1
+                schline = Regex.Split(tasklines(schcount), """")
+                Dim ldate As String
+                Dim ndate As String
+                Try
+                    'If the dates are in a different format, convert them to maintain consistency
+                    Dim mdate As Date = CDate(schline(9))
+                    Dim ntime As Date = CDate(schline(5))
+                    ndate = ntime.ToString
+                    ldate = mdate.ToString
+                Catch ex As Exception
+                    ndate = schline(9).ToString
+                    ldate = schline(5).ToString
+                End Try
+                schtask_sql(mydate, PC_ID, schline(3), schline(17), ndate, ldate, schline(13), schline(23), schline(25), schline(37))
+            Next
+        End If
+        schTaskFinalWriter.Close()
+
+        Return Err()
+    End Function
+    '*********************************************************************
+    'Get the Windows Firewall Configuration Information
+    '*********************************************************************
+    Function FirewallConfigInform()
+        'Windows Firewall Configuration Information
+        Dim Machine As String = System.Environment.MachineName
+        'Dim fw As String = "C:\Temp\firewall.csv"
+        ' Dim fwWriter As New System.IO.StreamWriter(fw)
+        Thread.Sleep(8000)
+        Dim sfresult As String()
+        Dim dors As String = ""
+        Dim bline() As String
+        Dim sr As String()
+        Dim sep() As String
+
+        'Formatting is different in Windows 7 and XP
+        'Windows XP does not return the Traffic Direction Information
+        If (My.Computer.Info.OSFullName.Contains("Windows 7")) Then
+            Try
+                Dim rflines As String() = IO.File.ReadAllLines(Temp_Path & "\firewall.txt")
+                For i = 0 To rflines.Length - 1
+                    sfresult = Split(rflines(i), " ")
+                    If sfresult(0).ToString = "Allowed" Then
+                        i = i + 3
+                        dors = sfresult(4)
+                        sr = Split(rflines(i), " ")
+                        If sr(0).ToString = "Enable" Or sr(0).ToString = "Disable" Then
+                            bline = Regex.Split(rflines(i), "\s\s+")
+                            sep = Regex.Split(bline(2), " / ")
+                            'This writes the first line that matches criteria
+                            firewall_sql(mydate, PC_ID, dors, bline(0), sep(0), sep(1), bline(1))
+                        End If
+                    End If
+                    If sfresult(0).ToString = "Enable" Or sfresult(0).ToString = "Disable" Then
+
+                        bline = Regex.Split(rflines(i), "\s\s+")
+                        If bline(1).ToString = "Inbound" Or bline(1).ToString = "Outbound" Then
+                            sep = Regex.Split(bline(2), " / ")
+                            'This writes the subsequent lines that match the criteria
+                            firewall_sql(mydate, PC_ID, dors, bline(0), sep(0), sep(1), bline(1))
+                        End If
+                    End If
+                Next
+            Catch ex As Exception
+                error_sql("Error in FirewallconfigInform function:" & ex.Message)
+            End Try
+
+        ElseIf My.Computer.Info.OSFullName.Contains("Windows XP") Then
+            Try
+                Dim rflines As String() = IO.File.ReadAllLines(Temp_Path & "\firewall.txt")
+                For i = 0 To rflines.Length - 1
+                    sfresult = Split(rflines(i), " ")
+                    If sfresult(0).ToString = "Allowed" Then
+                        i = i + 3
+                        dors = sfresult(4)
+                        sr = Split(rflines(i), " ")
+                        If sr(0).ToString = "Enable" Or sr(0).ToString = "Disable" Then
+                            bline = Regex.Split(rflines(i), "\s\s+")
+                            sep = Regex.Split(bline(1), " / ")
+                            'This writes the first line that matches the criteria
+                            firewall_sql(mydate, PC_ID, dors, bline(0), sep(0), sep(1), bline(1))
+                        End If
+                    End If
+                    If sfresult(0).ToString = "Enable" Or sfresult(0).ToString = "Disable" Then
+                        bline = Regex.Split(rflines(i), "\s\s+")
+                        sep = Regex.Split(bline(1), " / ")
+                        'This writes the subsequent lines that match the criteria
+                        firewall_sql(mydate, PC_ID, dors, bline(0), sep(0), sep(1), bline(1))
+                    End If
+                Next
+            Catch ex As Exception
+                error_sql("Error in FirewallconfigInform function:" & ex.Message)
+            End Try
+        End If
+        'fwWriter.Close()
+
+        Return Err()
+    End Function
+    '*********************************************************************
+    'Get the Startup List Information
+    '*********************************************************************
+    Function StartListInform()
+        Dim obj_WMI, objStartup, rQuery
+
+        obj_WMI = GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\cimv2")
+        rQuery = obj_WMI.ExecQuery("Select * from Win32_StartupCommand")
+
+        For Each objStartup In rQuery
+            start_list_sql(mydate, PC_ID, objStartup.Caption(), objStartup.Command(), objStartup.Description(), objStartup.Location(), objStartup.SettingID(), objStartup.User())
+            'Console.Write(start_list_sql)
+            'Console.Read()
+        Next
+
+        Return Err()
+    End Function
+    '*********************************************************************
+    'Get the Service List Information
+    '*********************************************************************
+    Function ServListInform()
+
+        Dim scServices() As ServiceController
+        scServices = ServiceController.GetServices()
+        Dim scTemp As ServiceController
+        For Each scTemp In scServices
+            Dim wmiService As ManagementObject
+            wmiService = New ManagementObject("Win32_Service.Name='" + scTemp.ServiceName + "'")
+            wmiService.Get()
+            service_list_sql(mydate, wmiService("Name").ToString, wmiService("ProcessID").ToString, wmiService("PathName").ToString, wmiService("StartMode").ToString, wmiService("State").ToString, wmiService("Status").ToString, wmiService("ServiceType").ToString, wmiService("StartName").ToString, wmiService("ExitCode").ToString)
+
+        Next scTemp
+        'servListCsvWriter.Close()
+        Return Err()
+
+
+    End Function
+    '*********************************************************************
+    'Get the Netstat Information
+    '*********************************************************************
+    Function NetstatInform()
+
+        Thread.Sleep(5000)
+        Try
+            Dim rlines As String() = IO.File.ReadAllLines(Temp_Path & "\netstat.txt")
+            Dim sResult As String()
+            For Each rline In rlines
+                rline = Trim(rline)
+                sResult = Split(rline, " ")
+                If (sResult(0).ToString = "TCP") Then
+                    Dim tcpr As String = rline
+                    Dim tarr As String() = SplitFields(tcpr)
+                    netstat_sql(mydate, PC_ID, tarr(0), tarr(1), tarr(2), tarr(3), tarr(4))
+
+                ElseIf (sResult(0).ToString = "UDP") Then
+                    Dim udpr As String = rline
+                    Dim uarr As String() = SplitFields(udpr)
+                    netstat_sql(mydate, PC_ID, uarr(0), uarr(1), uarr(2), "", uarr(3))
+
+                End If
+            Next
+            System.IO.File.Delete(Temp_Path & "\netstat.txt")
+        Catch ex As Exception
+            error_sql("Error in NetstatInform function:" & ex.Message)
+        End Try
+        Return Err()
+
+    End Function
+    '*********************************************************************
+    'Get the Running Processes Related Information
+    '*********************************************************************
+    Function ProcInform()
+        Dim oProcesses() As Process = System.Diagnostics.Process.GetProcesses()
+        Dim pro As New Process()
+        Dim csvFile As String = Temp_Path & "\process.csv"
+        Dim md5values As String = Temp_Path & "\md5sum.csv"
+        Dim md5writer As New System.IO.StreamWriter(md5values)
+        'A temp file that will contain module names for all processes
+        'later we will select the uniques out of it
+        Dim tempHashFile As String = Temp_Path & "\thash.csv"
+        Dim thFile As New System.IO.StreamWriter(tempHashFile)
+        Dim outFile As New System.IO.StreamWriter(csvFile)
+        Dim proModule As ProcessModule
+        Dim comLine As String = ""
+        Dim sPath As String
+        Dim i As Integer
+
+
+        For Each oProc As Process In oProcesses
+            If Not (oProc.Id = 0) And Not (oProc.Id = 4) Then
+                Dim Parent_ID As Integer
+                Dim objWMI, objProc, resQuery
+                'Creating a WMI object
+                'impersonate means that the current user's permissions will be used by WMI
+                'In a nutshell, connecting to WMI using defaults
+                objWMI = GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\cimv2")
+                resQuery = objWMI.ExecQuery("Select * from Win32_Process where ProcessID=" & oProc.Id)
+                For Each objProc In resQuery
+                    'For each process, get the parent ID
+                    Parent_ID = objProc.ParentProcessID()
+                    ' To handle the DBNULL to string conversion exception, add a space
+                    comLine = objProc.CommandLine() & Space(1)
+                Next
+                Try
+                    'For each process, get the module names
+                    Dim args(1) As Object
+                    Dim ms As New ManagementObjectSearcher("SELECT * FROM Win32_Process WHERE ProcessId = " & oProc.Id)
+                    Dim usname As String
+                    For Each mo As ManagementObject In ms.Get
+                        If CUInt(mo.InvokeMethod("GetOwner", args)) = 0 Then
+                            usname = args(1).ToString & ": " & args(0).ToString
+                            sPath = oProc.MainModule.FileName
+                            Dim proStartInfo As New ProcessStartInfo(oProc.ProcessName)
+                            oProc.StartInfo = proStartInfo
+                            Dim proModuleCollection As ProcessModuleCollection
+                            proModuleCollection = oProc.Modules
+                            Dim UCFilename As String
+                            For i = 0 To proModuleCollection.Count() - 1
+                                proModule = proModuleCollection(i)
+                                Proc_sql(mydate, PC_ID, oProc.ProcessName, oProc.HandleCount.ToString, sPath, oProc.Id.ToString, oProc.Threads.Count.ToString, comLine, Parent_ID.ToString, proModule.FileName, usname)
+                                'Changing case to maintain consistency 
+                                UCFilename = UCase(proModule.FileName.ToString)
+                                thFile.WriteLine(UCFilename)
+                            Next i
+
+                        End If
+                    Next
+                Catch ex As Exception
+                    error_sql("Error in process function:" & ex.Message)
+                End Try
+            End If
+        Next
+        outFile.Close()
+        thFile.Close()
+        Dim tlines As String() = IO.File.ReadAllLines(Temp_Path & "\thash.csv")
+        'Getting the distinct names of loaded modules (to avoid recalculation of 
+        'hash for the same file.
+        Dim distinctlines As String() = tlines.Distinct.ToArray()
+        IO.File.WriteAllLines(Temp_Path & "\hash.csv", distinctlines)
+        Dim hlines As String() = IO.File.ReadAllLines(Temp_Path & "\hash.csv")
+        For Each hline In hlines
+
+            'XP does raises error on some characters in filenames while Win 7 ignores them
+            'So remove invalid characters altogether from filenames
+            'If no invalid characters present, no harm done
+            hline = hline.Trim(Path.GetInvalidFileNameChars())
+            hline = hline.Trim(Path.GetInvalidPathChars())
+            Dim theFile As New FileInfo(hline)
+            Dim theFileVInfo As FileVersionInfo
+            theFileVInfo = FileVersionInfo.GetVersionInfo(hline)
+            MD5_sql(mydate, PC_ID, hline, MD5CalcFile(hline), theFile.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"), theFile.LastAccessTime.ToString("yyyy-MM-dd HH:mm:ss"), theFile.CreationTime.ToString("yyyy-MM-dd HH:mm:ss"), theFileVInfo.CompanyName, theFileVInfo.FileVersion)
+        Next
+        md5writer.Close()
+        System.IO.File.Delete(tempHashFile)
+        System.IO.File.Delete(Temp_Path & "\hash.csv")
+        Return Err()
+
+    End Function
+
+    '*********************************************************************
+    'Get the PC Information
+    '*********************************************************************
+    Function PCInform()
+
+        Dim ip() As System.Net.IPAddress = System.Net.Dns.GetHostAddresses(System.Net.Dns.GetHostName())
+        Dim ipadd As String = ""
+        Dim mac As String = ""
+        Dim Wmi As New System.Management.ManagementObjectSearcher("SELECT * FROM Win32_NetworkAdapterConfiguration")
+        'Windows 7 returns IP addresses differently than Windows XP
+        'Collecting IP addresses based on the OS
+        If (My.Computer.Info.OSFullName.Contains("Windows 7")) Then
+            Try
+                ipadd = ip(2).ToString
+            Catch ex As Exception
+                ipadd = ip(1).ToString
+            End Try
+        ElseIf My.Computer.Info.OSFullName.Contains("Windows XP") Then
+            ipadd = ip(0).ToString
+        End If
+        For Each WmiObj As ManagementObject In Wmi.Get
+            If CBool(WmiObj("IPEnabled")) Then
+                If (WmiObj("IPAddress")(0)) = ipadd Then
+                    mac = WmiObj("MACAddress")
+                End If
+            End If
+        Next
+        '
+        'Determine What users is currently logged into the system by getting the user that is running explorer.exe shell
+        Dim ActualUserName As String = ""
+        Dim CurrentProcesses As Management.ManagementObjectCollection
+        Dim ProcessSearch As Management.ManagementObjectSearcher
+        Dim ProcessItem As Management.ManagementObject
+        ProcessSearch = New Management.ManagementObjectSearcher("Select * from Win32_Process")
+        CurrentProcesses = ProcessSearch.Get
+        For Each ProcessItem In CurrentProcesses
+            Dim ProcessOwner(2) As String
+            ProcessItem.InvokeMethod("GetOwner", ProcessOwner)
+            If (ProcessItem("Name").ToString = "explorer.exe") Then
+                ActualUserName = ProcessOwner(0).ToString
+                LocalUserName = ProcessOwner(0).ToString
+                '  Console.WriteLine(ActualUserName)
+                Exit For
+            End If
+        Next
+        '
+        'Determine if the Users logged in is part of the local computer admin user group
+        Dim serverName = "."
+        Dim oGroup As Object = GetObject("WinNT://" & serverName & "/Administrators") 'Get list of local users that are part of admin group
+        Dim isadmin As String = ""
+        If Err.Number = 0 Then
+            Dim bUserExist As Boolean = False ' init value
+            Dim oUser As Object
+
+            For Each oUser In oGroup.Members
+                ' Console.WriteLine(oUser.Name)
+                If ActualUserName = oUser.Name Then ' Both Logged in user and admin group user are the same
+                    isadmin = "Y"
+                    ' Console.WriteLine(isadmin)
+                    Exit For    'If yes exit for loop
+                Else
+                    isadmin = "N"
+                    ' Console.WriteLine(isadmin)
+                End If
+            Next
+
+        End If
+
+        'Getting the OS Architecture - 32 or 64 bit
+        osArch = IntPtr.Size * 8
+
+
+        Dim useraccounts As String = Temp_Path & "\ua.csv"
+        Dim uaWriter As New System.IO.StreamWriter(useraccounts)
+        Dim objWshNet As Object = CreateObject("WScript.Network")
+        Dim strComputer As String = objWshNet.ComputerName ' local computer
+        Dim objWMIService, colItems, obj
+        objWMIService = GetObject("winmgmts:\\" & strComputer & "\root\cimv2")
+        colItems = objWMIService.ExecQuery _
+        ("Select * from Win32_UserAccount Where Domain = '" & strComputer & "'")
+        For Each obj In colItems
+            If obj.Disabled = "False" Then
+                uaWriter.WriteLine(obj.Caption)
+            End If
+        Next
+        uaWriter.Close()
+
+        'Listing all enabled users
+        Dim readusers As String() = IO.File.ReadAllLines(useraccounts)
+        Dim readuser As String
+        Dim mystring As String = ""
+        For Each readuser In readusers
+            mystring = mystring + readuser + " "
+        Next
+        PCinfo_sql(PC_ID, mydate, Machine, ipadd, mac, My.Computer.Info.OSFullName, System.Environment.OSVersion.ToString, osArch + "bit", ActualUserName, isadmin, mystring)
+        'pcinfoWriter.Close()
+        Return Err()
+
+    End Function
+
+    '*********************************************************************
+    'Query Port 3306 on selected server to see if it is available.
+    '*********************************************************************
+    Function QueryPort()
+
+        Dim servip = System.Net.IPAddress.Parse(server)
+        Dim hostadd As System.Net.IPAddress = servip 'users server from SQL server ip declaired at top
+        Dim EPhost As New System.Net.IPEndPoint(hostadd, 3306)
+        Dim s As New System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp)
+        Try
+            s.Connect(EPhost)
+        Catch
+        End Try
+        If Not s.Connected Then
+            'Console.Write("Port " + " is not open")
+            ' Console.Read()
+            QueryPort = False
+
+            '****************Write TO Eventlog
+            Dim sSource As String
+            Dim sLog As String
+            Dim sEvent As String
+            Dim sMachine As String
+
+            sSource = "OHIPS"
+            sLog = "Application"
+            sEvent = "Network Connection Failed to Database Server"
+            sMachine = "."
+
+
+            Dim ELog As New EventLog(sLog, sMachine, sSource)
+            ELog.WriteEntry(sEvent)
+            ELog.WriteEntry(sEvent, EventLogEntryType.Warning, 234, CType(3, Short))
+
+        Else
+            '   Console.Write("Port " + port.ToString + " is open")
+            '  Console.Read()
+            QueryPort = True
+        End If
+
+    End Function
+
+    '*********************************************************************
+    'RegRead function
+    '*********************************************************************
+    Function ReadRegistry(ByVal strHive, ByVal strKeyPath, ByVal strValueName, ByVal strValue)
+        Dim readval As String
+        On Error Resume Next
+        Err.Clear()
+        'oReg.GetStringValue(strHive, strKeyPath, strValueName, strValue)
+        If Err.Number = 0 Then
+            ReadRegistry = My.Computer.Registry.GetValue("HKEY_LOCAL_MACHINE" & Registery_Path, "LastFindSSN", Nothing)
+        Else
+            ReadRegistry = False
+        End If
+        Return ReadRegistry
+    End Function
+    '*********************************************************************
+    'RegWrite function
+    '*********************************************************************
+    Function WriteRegistry(ByVal strKey, ByVal strValue, ByVal strRegType)
+        Try
+            Return oShell.RegWrite(strKey, strValue, strRegType)
+        Catch ex As Exception
+            error_sql("Error writing registery:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error 
+    End Function
+    '*********************************************************************
+    ' Specify the path to a file and this routine will calculate your hash
+    '*********************************************************************
+    Public Function MD5CalcFile(ByVal filepath As String) As String
+        ' open file (as read-only)
+        Using reader As New System.IO.FileStream(filepath, IO.FileMode.Open, IO.FileAccess.Read)
+            Using md5 As New System.Security.Cryptography.MD5CryptoServiceProvider
+                ' hash contents of this stream
+                Dim hash() As Byte = md5.ComputeHash(reader)
+                ' return formatted hash
+                Return ByteArrayToString(hash)
+            End Using
+        End Using
+    End Function
+    '*********************************************************************
+    ' Utility function to convert a byte array into a hex string
+    '*********************************************************************
+    Private Function ByteArrayToString(ByVal arrInput() As Byte) As String
+        Dim sb As New System.Text.StringBuilder(arrInput.Length * 2)
+        For i As Integer = 0 To arrInput.Length - 1
+            sb.Append(arrInput(i).ToString("X2"))
+        Next
+        Return sb.ToString().ToLower
+    End Function
+    Private Function SplitFields(ByVal s As String) As String()
+        Return Regex.Split(s, "\s+")
+    End Function
+
+    Public Sub MySQLOpenConnection(ByVal pConnectionString As String)
+        MysqlConn = New MySqlConnection()
+        MysqlConn.ConnectionString = pConnectionString
+        Try
+            Dim Insert As New MySqlCommand
+            MysqlConn.Open()
+        Catch myerror As MySqlException
+            '   Console.Write("Cannot connect to database: " & myerror.Message)
+            ' Console.Read() ' Pauses the box for errors
+
+            '****************Write TO Eventlog
+            Dim sSource As String
+            Dim sLog As String
+            Dim sEvent As String
+            Dim sMachine As String
+
+            sSource = "OHIPS"
+            sLog = "Application"
+            sEvent = "Failed to Authenicate the Database Server"
+            sMachine = "."
+
+
+            Dim ELog As New EventLog(sLog, sMachine, sSource)
+            ELog.WriteEntry(sEvent)
+            ELog.WriteEntry(sEvent, EventLogEntryType.Warning, 234, CType(3, Short))
+
+
+        End Try
+    End Sub
+
+    Public Sub MySQLCloseConnection()
+        'Dim MysqlConn As MySqlConnection
+        Try
+            If Not MysqlConn Is Nothing Then
+                If MysqlConn.State = ConnectionState.Open Then
+                    MysqlConn.Close()
+                    MysqlConn.Dispose()
+                End If
+            End If
+        Catch ex As MySqlException
+            error_sql("Error chould not close connection:" & ex.Message)
+        End Try
+    End Sub
+
+    Function netstat_sql(ByVal Ndate As String, ByVal Ncname As String, ByVal Nprotocol As String, ByVal Nlocaladdress As String, ByVal Nforeignaddress As String, ByVal Nstate As String, ByVal Npid As String)
+        Dim Insert As New MySqlCommand
+        Try
+            Insert.Connection = MysqlConn
+            Insert.CommandText = "Insert into Netstat_Temp (UID,Date,PC_Id,Protocol,LocalIP,DstIP,Status,PID)" & "VALUES (0," & Chr(34) & Ndate & Chr(34) & "," & Chr(34) & Ncname & Chr(34) & "," & Chr(34) & Nprotocol & Chr(34) & "," & Chr(34) & Nlocaladdress & Chr(34) & "," & Chr(34) & Nforeignaddress & Chr(34) & "," & Chr(34) & Nstate & Chr(34) & "," & Chr(34) & Npid & Chr(34) & ")"
+            ' Console.Write(Insert.CommandText)
+            'Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in netstat_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error 
+    End Function
+
+    Function firewall_sql(ByVal FWdate As String, ByVal FWcname As String, ByVal FWpolicy As String, ByVal FWmode As String, ByVal FWprog_name As String, ByVal FWprog_path As String, ByVal FWtraffic_dir As String)
+        Dim Insert As New MySqlCommand
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Firewall_Temp (UID,Date,PC_Id,Policy,Mode,Prog_Name,Prog_Path,Traffic_Dir)" & "VALUES (0," & Chr(34) & FWdate & Chr(34) & "," & Chr(34) & FWcname & Chr(34) & "," & Chr(34) & FWpolicy & Chr(34) & "," & Chr(34) & FWmode & Chr(34) & "," & Chr(34) & FWprog_name & Chr(34) & "," & Chr(34) & FWprog_path & Chr(34) & "," & Chr(34) & FWtraffic_dir & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/")
+            Insert.CommandText = command_replace
+            'Console.Write(Insert.CommandText)
+            ' Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in firewall_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+
+
+    Function schtask_sql(ByVal STdate As String, ByVal STcname As String, ByVal STtask_name As String, ByVal STtask_run As String, ByVal STnext_time_run As String, ByVal STlast_time_run As String, ByVal STauthor As String, ByVal STstate As String, ByVal STtype As String, ByVal STrun_as As String)
+        Dim Insert As New MySqlCommand
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Sch_Tasks_Temp (UID,Date,PC_Id,Task_Name,Task_Run,Next_Run_Time,Last_Run_Time,Author,State,Type,Run_As)" & "VALUES (0," & Chr(34) & STdate & Chr(34) & "," & Chr(34) & STcname & Chr(34) & "," & Chr(34) & STtask_name & Chr(34) & "," & Chr(34) & STtask_run & Chr(34) & "," & Chr(34) & STnext_time_run & Chr(34) & "," & Chr(34) & STlast_time_run & Chr(34) & "," & Chr(34) & STauthor & Chr(34) & "," & Chr(34) & STstate & Chr(34) & "," & Chr(34) & STtype & Chr(34) & "," & Chr(34) & STrun_as & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/")
+            Insert.CommandText = command_replace
+            ' Console.Write(Insert.CommandText)
+            ' Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in schtask_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+
+    Function start_list_sql(ByVal SLdate As String, ByVal SLname As String, ByVal SLcaption As Object, ByVal SLcommand As Object, ByVal SLdescription As Object, ByVal SLlocation As Object, ByVal SLSettingID As Object, ByVal SLuser As Object)
+        Dim Insert As New MySqlCommand
+        Dim SLcommand_nq = Regex.Replace(SLcommand, """", "") ' remove quote
+
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Start_List_Temp (UID,Date,PC_Id,Caption,Command,Description,Location,SettingID,User)" & "VALUES (0," & Chr(34) & SLdate & Chr(34) & "," & Chr(34) & SLname & Chr(34) & "," & Chr(34) & SLcaption & Chr(34) & "," & Chr(34) & SLcommand_nq & Chr(34) & "," & Chr(34) & SLdescription & Chr(34) & "," & Chr(34) & SLlocation & Chr(34) & "," & Chr(34) & SLSettingID & Chr(34) & "," & Chr(34) & SLuser & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/") ' this changed the back slash to forward slash
+            Insert.CommandText = command_replace ' set variable to run
+            ' Console.Write(Insert.CommandText)
+            ' Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in start_list_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+
+
+    Function service_list_sql(ByVal Svdate As String, ByVal Svname As Object, ByVal Svpid As Object, ByVal Svpathname As Object, ByVal Svstartmode As Object, ByVal Svstate As Object, ByVal Svstatus As Object, ByVal Svtype As Object, ByVal Svstartname As Object, ByVal Svexitcode As Object)
+        Dim Insert As New MySqlCommand
+        Dim Svpathname_nq = Regex.Replace(Svpathname, """", "") ' remove quote
+        ' Console.Write(Svpathname_nq)
+        '  Console.Read()
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Service_List_Temp (UID,Date,PC_Id,Name,PID,PathName,StartMode,State,Status,ServiceType,StartName,Exitcode)" & "VALUES (0," & Chr(34) & Svdate & Chr(34) & "," & Chr(34) & PC_ID & Chr(34) & "," & Chr(34) & Svname & Chr(34) & "," & Chr(34) & Svpid & Chr(34) & "," & Chr(34) & Svpathname_nq & Chr(34) & "," & Chr(34) & Svstartmode & Chr(34) & "," & Chr(34) & Svstate & Chr(34) & "," & Chr(34) & Svstatus & Chr(34) & "," & Chr(34) & Svtype & Chr(34) & "," & Chr(34) & Svstartname & Chr(34) & "," & Chr(34) & Svexitcode & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/") ' this changed the back slash to forward slash
+            '  Console.WriteLine(command_replace)
+            Insert.CommandText = command_replace ' set variable to run
+            ' Console.Write(Insert.CommandText)
+            ' Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in service_list_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+
+
+    Function Proc_sql(ByVal Pdate As String, ByVal Pname As String, ByVal Pprocname As Object, ByVal Phandlecount As Object, ByVal Pprocfile As Object, ByVal Ppid As Object, ByVal Pthreadcount As Object, ByVal Pcommandline As Object, ByVal Pppid As Object, ByVal Pprocmod As Object, ByVal Powner As Object)
+        Dim Insert As New MySqlCommand
+        Pcommandline = Regex.Replace(Pcommandline, """", "") ' remove quote
+
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Process_Temp (UID,Date,PC_Id,Proc_Name,Handelcount,Proc_File,PID,Threadcount,Commandline,PPID,Proc_Mod,Owner)" & "VALUES (0," & Chr(34) & Pdate & Chr(34) & "," & Chr(34) & Pname & Chr(34) & "," & Chr(34) & Pprocname & Chr(34) & "," & Chr(34) & Phandlecount & Chr(34) & "," & Chr(34) & Pprocfile & Chr(34) & "," & Chr(34) & Ppid & Chr(34) & "," & Chr(34) & Pthreadcount & Chr(34) & "," & Chr(34) & Pcommandline & Chr(34) & "," & Chr(34) & Pppid & Chr(34) & "," & Chr(34) & Pprocmod & Chr(34) & "," & Chr(34) & Powner & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/") ' this changed the back slash to forward slash
+            Insert.CommandText = command_replace ' set variable to run
+            'Console.Write(Insert.CommandText)
+            'Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in Proc_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+
+
+    Function MD5_sql(ByVal Hdate As String, ByVal Hname As String, ByVal Hfilename As Object, ByVal Hmd5 As Object, ByVal Hmdate As Object, ByVal Hadate As Object, ByVal Hcdate As Object, ByVal Hcompanyname As Object, ByVal Hversion As Object)
+        Dim Insert As New MySqlCommand
+        '   Pcommandline = Regex.Replace(Pcommandline, """", "") ' remove quote
+
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into PC_Hash_Temp (UID,Date,PC_Id,File_Name,MD5,Mdate,Adate,Cdate,Company_Name,Version)" & "VALUES (0," & Chr(34) & Hdate & Chr(34) & "," & Chr(34) & Hname & Chr(34) & "," & Chr(34) & Hfilename & Chr(34) & "," & Chr(34) & Hmd5 & Chr(34) & "," & Chr(34) & Hmdate & Chr(34) & "," & Chr(34) & Hadate & Chr(34) & "," & Chr(34) & Hcdate & Chr(34) & "," & Chr(34) & Hcompanyname & Chr(34) & "," & Chr(34) & Hversion & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/") ' this changed the back slash to forward slash
+            Insert.CommandText = command_replace ' set variable to run
+            ' Console.Write(Insert.CommandText)
+            'Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch Ex As MySqlException
+            error_sql("Error in MD5_sql:" & Ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+    End Function
+
+
+    Function comid_sql(ByVal Compname As Object)
+
+        Dim Q As New MySqlCommand
+        Try
+            Dim myname As MySqlParameter
+            Dim PCID As MySqlParameter
+            Dim PCIDreader As MySqlDataReader
+            Q = New MySqlCommand("get_com_id", MysqlConn)
+            Q.CommandType = CommandType.StoredProcedure
+            myname = Q.Parameters.Add("Compname_id", MySqlDbType.Text)
+            PCID = Q.Parameters.Add("out", MySqlDbType.Text)
+            PCID.Direction = ParameterDirection.Output
+            myname.Value = Compname
+            PCIDreader = Q.ExecuteReader()
+
+            While PCIDreader.Read()
+                PC_ID = PCIDreader.GetString(0)
+                '   Console.WriteLine(PC_ID)
+                '  Console.Read()
+            End While
+            PCIDreader.Close()
+        Catch ex As MySqlException
+            error_sql("Error in comid_sql:" & ex.Message)
+        End Try
+
+        Return vbNullString 'stops vb.net error
+    End Function
+
+    Function PCinfo_sql(ByVal PpcID As Integer, ByVal Pcdate As String, ByVal Pcname As String, ByVal Pcip As String, ByVal Pcmac As String, ByVal Pcosname As Object, ByVal Pcosver As String, ByVal PCarch As String, ByVal Pcuser As Object, ByVal Pcadmin As Object, ByVal Pcenabledusers As String)
+
+        Dim Update As New MySqlCommand
+        '   Pcommandline = Regex.Replace(Pcommandline, """", "") ' remove quote
+        Try
+            Update = New MySqlCommand("update_comp_info", MysqlConn)
+            Update.CommandType = CommandType.StoredProcedure
+            Dim Auth_Key As String = getMD5Hash(Machine & PC_ID) ' this is used to prevenet people from guessing and overwriting records
+            Update.Parameters.Add("Auth_Key", MySqlDbType.Text)
+            Update.Parameters.Add("PpcID", MySqlDbType.Text)
+            Update.Parameters.Add("Pcdate", MySqlDbType.Text)
+            Update.Parameters.Add("Pcip", MySqlDbType.Text)
+            Update.Parameters.Add("Pcmac", MySqlDbType.Text)
+            Update.Parameters.Add("Pcosname", MySqlDbType.Text)
+            Update.Parameters.Add("Pcosver", MySqlDbType.Text)
+            Update.Parameters.Add("Pcarch", MySqlDbType.Text)
+            Update.Parameters.Add("Pcuser", MySqlDbType.Text)
+            Update.Parameters.Add("Pcadmin", MySqlDbType.Text)
+            Update.Parameters.Add("Pcenabledusers", MySqlDbType.Text)
+            '
+            Update.Parameters("Auth_Key").Value = Auth_Key
+            Update.Parameters("PpcID").Value = PpcID
+            Update.Parameters("Pcdate").Value = Pcdate
+            Update.Parameters("Pcip").Value = Pcip
+            Update.Parameters("Pcmac").Value = Pcmac
+            Update.Parameters("Pcosname").Value = Pcosname
+            Update.Parameters("Pcosver").Value = Pcosver
+            Update.Parameters("Pcarch").Value = PCarch
+            Update.Parameters("Pcuser").Value = Pcuser
+            Update.Parameters("Pcadmin").Value = Pcadmin
+            Update.Parameters("Pcenabledusers").Value = Pcenabledusers
+            Update.ExecuteNonQuery()
+
+
+        Catch ex As MySqlException
+            error_sql("Error in PCINfo_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error
+
+
+
+    End Function
+    Function getMD5Hash(ByVal strToHash As String) As String
+        Dim md5Obj As New Security.Cryptography.MD5CryptoServiceProvider
+        Dim bytesToHash() As Byte = System.Text.Encoding.ASCII.GetBytes(strToHash)
+
+        bytesToHash = md5Obj.ComputeHash(bytesToHash)
+
+        Dim strResult As String = ""
+
+        For Each b As Byte In bytesToHash
+            strResult += b.ToString("x2")
+        Next
+
+        Return strResult
+    End Function
+
+    Public Function text_combine( _
+    ByVal path_to_read_file As String, _
+    ByVal path_to_append_file As String _
+) As Boolean
+
+        'Console.Write(path_to_append_file)
+        'Console.Read()
+        If ( _
+            (IO.File.Exists(path_to_read_file)) _
+            And (IO.File.Exists(path_to_append_file)) _
+        ) Then
+            Try
+                System.IO.File.AppendAllText( _
+                    path_to_append_file, _
+                    System.IO.File.ReadAllText(path_to_read_file) _
+                )
+                text_combine = True
+            Catch ex As Exception
+                text_combine = False
+                error_sql("Error in text_combine:" & ex.Message)
+            End Try
+        Else
+            text_combine = False
+        End If
+
+    End Function
+
+    Function findssn_sql(ByVal ssndate As String, ByVal ssncount As Integer, ByVal ssnfile As String)
+        Dim Insert As New MySqlCommand
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Find_SSN_Temp (UID,Date,PC_Id,Count,File)" & "VALUES (0," & Chr(34) & ssndate & Chr(34) & "," & Chr(34) & PC_ID & Chr(34) & "," & Chr(34) & ssncount & Chr(34) & "," & Chr(34) & ssnfile & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/") ' this changed the back slash to forward slash
+            Insert.CommandText = command_replace ' set variable to run
+
+            'Console.Write(Insert.CommandText)
+            ' Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            error_sql("Error in findssn_sql:" & ex.Message)
+        End Try
+        Return vbNullString 'stops vb.net error 
+    End Function
+
+    Function error_sql(ByVal strError As String) ' input errors into the SQL database for troubleshooting
+        Dim strError_nq = Regex.Replace(strError, """", "") ' remove quote
+        Dim Insert As New MySqlCommand
+        Try
+            Insert.Connection = MysqlConn
+            Dim command As String = "Insert into Error_Log (UID,Date,PC_Id,Error)" & "VALUES (0," & Chr(34) & Format(System.DateTime.Now, "yyyy-MM-dd HH:mm:ss") & Chr(34) & "," & Chr(34) & PC_ID & Chr(34) & "," & Chr(34) & strError_nq & Chr(34) & ")"
+            Dim command_replace = Regex.Replace(command, "\\", "/") ' this changed the back slash to forward slash
+            Insert.CommandText = command_replace ' set variable to run
+
+            'Console.Write(Insert.CommandText)
+            'Console.Read()
+            Insert.ExecuteNonQuery() 'runs the query Insert
+        Catch ex As MySqlException
+            'Console.Write("database insert error for errorlog : " & ex.Message)
+            'Console.Read()
+        End Try
+        Return vbNullString 'stops vb.net error 
+
+        Return vbNullString 'stops vb.net error 
+    End Function
+
+
+
+End Module

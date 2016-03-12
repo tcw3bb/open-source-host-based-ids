@@ -1,0 +1,1 @@
+The client written in VB.net using the 4.0 framework. It will collect the following critical system stats: running processes, loaded dlls, network connections, firewall rule set, services, startup items and scheduled tasks. Each system will connect back to a database server, currently on a daily interval, were the data will be process and correlated.
